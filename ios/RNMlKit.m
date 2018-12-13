@@ -16,6 +16,58 @@ RCT_EXPORT_MODULE()
 
 static NSString *const detectionNoResultsMessage = @"Something went wrong";
 
+
+RCT_REMAP_METHOD(deviceBarcodeRecognition, deviceBarcodeRecognition:(NSString *)imagePath resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    if (!imagePath) {
+        resolve(@NO);
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        FIRVisionBarcodeDetectorOptions *options = [[FIRVisionBarcodeDetectorOptions alloc] initWithFormats: FIRVisionBarcodeFormatPDF417 | FIRVisionBarcodeFormatCode128 | FIRVisionBarcodeFormatEAN8];
+        FIRVision *vision = [FIRVision vision];
+        FIRVisionBarcodeDetector *barcodeDetector = [vision barcodeDetectorWithOptions: options];
+        NSDictionary *d = [[NSDictionary alloc] init];
+        NSData *imageData = [NSData dataWithContentsOfURL:[NSURL URLWithString:imagePath]];
+        UIImage *image = [UIImage imageWithData:imageData];
+        
+        if (!image) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                resolve(@NO);
+            });
+            return;
+        }
+        
+        FIRVisionImage *handler = [[FIRVisionImage alloc] initWithImage:image];
+
+        [barcodeDetector detectInImage:handler completion:^(NSArray<FIRVisionBarcode *> *barcodes, NSError *_Nullable error) {
+            if (error != nil) {
+                NSString *errorString = error ? error.localizedDescription : detectionNoResultsMessage;
+                NSDictionary *pData = @{
+                                        @"error": [NSMutableString stringWithFormat:@"On-Device text detection failed with error: %@", errorString],
+                                        };
+                // Running on background thread, don't call UIKit
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    resolve(pData);
+                });
+                return;
+            }
+
+            NSMutableArray *output = [NSMutableArray array];
+            for (FIRVisionBarcode *barcode in barcodes) {
+                NSArray *corners = barcode.cornerPoints;
+
+                NSString *displayValue = barcode.displayValue;
+                NSString *rawValue = barcode.rawValue;
+                [output addObject:displayValue]
+            }
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                resolve(output);
+            });
+        }];
+    });
+}
+
 RCT_REMAP_METHOD(deviceTextRecognition, deviceTextRecognition:(NSString *)imagePath resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     if (!imagePath) {
         resolve(@NO);

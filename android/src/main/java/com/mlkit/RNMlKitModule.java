@@ -36,6 +36,44 @@ public class RNMlKitModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
+  public void deviceBarcodeRecognition(String uri, final Promise promise) {
+    try {
+      FirebaseVisionBarcodeDetectorOptions options =
+        new FirebaseVisionBarcodeDetectorOptions.Builder()
+        .setBarcodeFormats(
+                FirebaseVisionBarcode.FORMAT_PDF417,
+                FirebaseVisionBarcode.FIRVisionBarcodeFormatCode128)
+        .build();
+      FirebaseVisionImage image = FirebaseVisionImage.fromFilePath(this.reactContext, android.net.Uri.parse(uri));
+      FirebaseVisionBarcodeDetector detector = FirebaseVision.getInstance()
+        .getVisionBarcodeDetector(options);
+      
+      Task<List<FirebaseVisionBarcode>> result = detector.detectInImage(image)
+        .addOnSuccessListener(new OnSuccessListener<List<FirebaseVisionBarcode>>() {
+            @Override
+            public void onSuccess(List<FirebaseVisionBarcode> barcodes) {
+                List<String> barcodeValues = new ArrayList<String>();
+
+                for (FirebaseVisionBarcode barcode: barcodes) {
+                  barcodeValues.add(barcode.getRawValue());
+                }
+                promise.resolve(processDeviceResult(barcodeValues));
+            }
+        })
+        .addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                e.printStackTrace();
+                promise.reject(e);
+            }
+      });
+    } catch (IOException e) {
+      promise.reject(e);
+      e.printStackTrace();
+    }
+  }
+
+  @ReactMethod
   public void deviceTextRecognition(String uri, final Promise promise) {
       try {
           FirebaseVisionImage image = FirebaseVisionImage.fromFilePath(this.reactContext, android.net.Uri.parse(uri));
